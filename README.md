@@ -4,12 +4,12 @@ These instructions are written for ARO labs regarding set up on DICE environment
 
 The lab instructions are given in the instructions notebook. 
 This readme provides you with the instructions for installing the lab requirements.
-These instructions are very similar to the [tutorials instructions](https://github.com/ediaro23/tutorials).
+These instructions are very similar to the [tutorials instructions](https://github.com/ediadvancedrobotics/tutorials).
 
 ## Set up 
 
 ### On a DICE machine
-On DICE, we will clone the [lab repository](https://github.com/ediaro23/lab) and install the required [dependencies](https://github.com/ediaro23/lab/blob/main/requirements.txt). 
+On DICE, we will clone the [lab repository](https://github.com/ediadvancedrobotics/lab) and install the required [dependencies](https://github.com/ediadvancedrobotics/lab/blob/main/requirements.txt). 
 You can "clone" the project to a local folder of your choice.
 Open a terminal (CTRL + ALT + T) and follow the commands below:
 
@@ -19,22 +19,21 @@ Open a terminal (CTRL + ALT + T) and follow the commands below:
 cd ~
 ```
   
--   Create the aro23 directory if not already done
+-   Create the aro directory if not already done
 
 ```bash
-mkdir -p aro23 && cd aro23
+mkdir -p aro && cd aro
 ```
 
 - Clone the lab inside your home directory.
 
 ```bash 
-git clone https://github.com/ediaro23/lab/
+git clone https://github.com/ediadvancedrobotics/lab/
 ```
 
 - Install dependencies
 
 ```bash
-python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```    
 
@@ -70,7 +69,7 @@ Once you have the dependencies, you can start the server with `jupyter notebook`
 ### Running the instructions notebook
 On your terminal, cd into the lab folder:
 ```bash
-cd  ~/aro23/lab/
+cd  ~/aro/lab/
 ```
 Now run Jupyter notebook with the command
 ```bash
