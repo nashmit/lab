@@ -6,6 +6,5 @@ matplotlib
 meshcat
 quadprog
 scipy
-tensorflow
 ndcurves
 pybullet
