@@ -76,7 +76,7 @@ from config import MESHCAT_URL
 def setupwithmeshcat(url=MESHCAT_URL):
      '''setups everything to work with the robot and meshcat'''
      robot, table, obstacle, cube = setuppinocchio()
-     viz = setupmeshcat(robot)
+     viz = setupmeshcat(robot, url)
      return robot, cube, viz
  
 from setup_pybullet import setuppybullet
