@@ -13,7 +13,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="cube.obj" scale=".3 .03 .12"/>
+        <mesh filename="task2_obstacle.obj"/>
       </geometry>
        <material name="red">
         <color rgba="1 0 0 1"/>

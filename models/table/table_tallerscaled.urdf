@@ -12,7 +12,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0.84"/>
       <geometry>
-				<mesh filename="table.obj" scale="2.099 1.4 0.07"/>
+				<mesh filename="table_top.obj"/>
       </geometry>
        <material name="white">
         <color rgba="1 1 1 1"/>
@@ -27,25 +27,25 @@
 	<visual>
       <origin rpy="0 0 0" xyz="-0.909 -0.56 0.405"/>
       <geometry>
-	    <mesh filename="table.obj" scale="0.14 0.14 0.812"/>
+	    <mesh filename="table_foot.obj" />
       </geometry> 
     </visual>
     <visual>
       <origin rpy="0 0 0" xyz="-0.909 0.56 0.405"/>
       <geometry>
-        <mesh filename="table.obj" scale="0.14 0.14 0.812"/>
+        <mesh filename="table_foot.obj" />
       </geometry>
 	  </visual>
     <visual>
       <origin rpy="0 0 0" xyz="0.909 -0.56 0.405"/>
       <geometry>
-        <mesh filename="table.obj" scale="0.14 0.14 0.812"/>
+        <mesh filename="table_foot.obj" />
       </geometry>
 	  </visual>
     <visual>
       <origin rpy="0 0 0" xyz="0.909 0.56 0.405"/>
       <geometry>
-        <mesh filename="table.obj" scale="0.14 0.14 0.812"/>
+        <mesh filename="table_foot.obj" />
       </geometry>
     </visual>
   </link>
