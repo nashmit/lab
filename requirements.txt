@@ -7,3 +7,4 @@ matplotlib
 meshcat
 quadprog
 scipy
+pybullet==3.2
