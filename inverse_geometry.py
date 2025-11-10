@@ -112,7 +112,11 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     # However, the numerical dumping term and the posture bias are fully functional.
     # I also added the configuration bonds just to make sure we don't end up with a final solution that is not plausible.
     # I also added the velocity bounds... as an exercises for the next tasks.
+
+    # In this homework, I'm using IK with the same meaning as one can find in the literature.
+
     #todo add the equation for clarity!
+
     q_target, success = IK_loop_2arms_simultaneously(
         robot=robot,
         cube=cube,
