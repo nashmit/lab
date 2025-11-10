@@ -19,6 +19,8 @@ from time import sleep
 
 from tools import setcubeplacement
 
+from setup_meshcat import updatevisuals
+
 def oneStepIK_2arms_simultaneously(
         J_LH, J_RH,
         q, q_min, q_max,
@@ -106,7 +108,7 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     oMcube_LH_hook = getcubeplacement(cube, LEFT_HOOK)
     oMcube_RH_hook = getcubeplacement(cube, RIGHT_HOOK)
 
-    size = q.size
+    size = qcurrent.size
 
     # The selected parameters are not optimized with a particular objective in mind other than reaching the end goal.
     # However, the numerical dumping term and the posture bias are fully functional.
@@ -142,7 +144,7 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
             
 if __name__ == "__main__":
     from tools import setupwithmeshcat
-    from setup_meshcat import updatevisuals
+
     robot, cube, viz = setupwithmeshcat()
     
     q = robot.q0.copy()
