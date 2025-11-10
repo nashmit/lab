@@ -49,7 +49,7 @@ def IK_loop_2arms_simultaneously(
         robot, cube,
         q, q_min, q_max, vq_min, vq_max,
         frameID_current_LH, oMf_target_LH, frameID_current_RH, oMf_target_RH,
-        mu, W, lambda_, q_posture, error_stop=1e-4, max_steps=1000, alpha=0.3,
+        mu, W, lambda_, q_posture, error_stop=1e-4, max_steps=2000, alpha=0.3,
         viz = None, sleep_time=0.0
 ):
 
