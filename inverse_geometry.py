@@ -26,17 +26,22 @@ def oneStepIK_2arms_simultaneously(
         q, q_min, q_max,
         vq_min, vq_max,
         v_LH, v_RH,
-        mu, W, lambda_, q_posture, tol=1e-10
+        rho, mu, W, lambda_, q_posture, tol=1e-10
 ):
+    #not essential, just keeping the notation clean for future use
+    rho = np.sqrt(rho)
 
-    A_LH = np.vstack([J_LH, mu * W, lambda_ * np.eye(q.size)])
-    b_LH = np.concatenate([v_LH, mu * W @ (q_posture - q), np.zeros(q.size)])
+    # A_LH = np.vstack([rho * J_LH, mu * W, lambda_ * np.eye(q.size)])
+    # b_LH = np.concatenate([rho * v_LH, mu * W @ (q_posture - q), np.zeros(q.size)])
+    #
+    # A_RH = np.vstack([rho * J_RH, mu * W, lambda_ * np.eye(q.size)])
+    # b_RH = np.concatenate([rho * v_RH, mu * W @ (q_posture - q), np.zeros(q.size)])
+    #
+    # A = np.vstack([A_LH, A_RH])
+    # b = np.concatenate([b_LH, b_RH])
 
-    A_RH = np.vstack([J_RH, mu * W, lambda_ * np.eye(q.size)])
-    b_RH = np.concatenate([v_RH, mu * W @ (q_posture - q), np.zeros(q.size)])
-
-    A = np.vstack([A_LH, A_RH])
-    b = np.concatenate([b_LH, b_RH])
+    A = np.vstack([rho * J_LH, rho * J_RH, mu * W, lambda_ * np.eye(q.size)])
+    b = np.concatenate([rho * v_LH, rho * v_RH, mu * W @ (q_posture - q), np.zeros(q.size)])
 
     # I take into consideration both the velocity limits as well as the configuration limits.
     dq_min = np.maximum(q_min - q, vq_min)
@@ -51,7 +56,7 @@ def IK_loop_2arms_simultaneously(
         robot, cube,
         q, q_min, q_max, vq_min, vq_max,
         frameID_current_LH, oMf_target_LH, frameID_current_RH, oMf_target_RH,
-        mu, W, lambda_, q_posture, error_stop=1e-4, max_steps=2000, alpha=0.3,
+        rho, mu, W, lambda_, q_posture, error_stop=1e-4, max_steps=2000, alpha=0.3,
         viz = None, sleep_time=0.0
 ):
 
@@ -69,7 +74,8 @@ def IK_loop_2arms_simultaneously(
         tool_error_LH = pin.log(oMf_current_LH.inverse() * oMf_target_LH).vector
         tool_error_RH = pin.log(oMf_current_RH.inverse() * oMf_target_RH).vector
 
-        if norm(tool_error_LH + tool_error_RH) <= error_stop:
+        # I could also consider: λ*∥W(q−q_posture)∥^2 as part of the stopping criteria...
+        if norm(tool_error_LH) + norm(tool_error_RH) <= error_stop:
             success = True
             break
 
@@ -81,6 +87,7 @@ def IK_loop_2arms_simultaneously(
             q=robot.q0, q_min=q_min, q_max=q_max,
             vq_min=vq_min, vq_max=vq_max,
             v_LH=tool_error_LH, v_RH=tool_error_RH,
+            rho=rho,
             mu=mu, W=W, lambda_=lambda_, q_posture=q_posture
         )
 
@@ -131,6 +138,7 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
         oMf_target_LH=oMcube_LH_hook,
         frameID_current_RH = frameID_tool_RH,
         oMf_target_RH = oMcube_RH_hook,
+        rho=2,
         mu=0.01,
         W=np.identity(size),
         lambda_=0.3,
