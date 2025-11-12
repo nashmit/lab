@@ -262,7 +262,7 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal, viz=None):
     pause(5)
     path_generator.displaypath()
 
-    updatevisuals(viz, path_generator.robot, path_generator.cube, qgoal)
+    # updatevisuals(viz, path_generator.robot, path_generator.cube, qgoal)
 
     # return [qinit, qgoal]
     return  path_generator.getpath()
