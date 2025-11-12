@@ -235,7 +235,7 @@ class GeneratedPath:
 
 #returns a collision free path from qinit to qgoal under grasping constraints
 #the path is expressed as a list of configurations
-def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal, viz=None):
+def computepath(robot, cube, qinit, qgoal, cubeplacementq0, cubeplacementqgoal, viz=None):
 
     path_generator = GeneratedPath(robot=robot, cube=cube, viz=viz)
 
@@ -283,6 +283,6 @@ if __name__ == "__main__":
     else:
         print ("Valid initial AND end configuration")
     
-    path = computepath(q0, qe, CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, viz=viz)
+    path = computepath(robot, cube, q0, qe, CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET, viz=viz)
     
     # displaypath(robot,path,dt=0.5,viz=viz) #you ll probably want to lower dt
