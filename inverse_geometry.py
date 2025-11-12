@@ -56,7 +56,7 @@ def IK_loop_2arms_simultaneously(
         robot, cube,
         q, q_min, q_max, vq_min, vq_max,
         frameID_current_LH, oMf_target_LH, frameID_current_RH, oMf_target_RH,
-        rho, mu, W, lambda_, q_posture, error_stop=1e-4, max_steps=2000, alpha=0.3,
+        rho, mu, W, lambda_, q_posture, error_stop=1e-3, max_steps=2000, alpha=0.3,
         viz = None, sleep_time=0.0
 ):
 
@@ -138,14 +138,14 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
         oMf_target_LH=oMcube_LH_hook,
         frameID_current_RH = frameID_tool_RH,
         oMf_target_RH = oMcube_RH_hook,
-        rho=2,
+        rho=4,
         mu=0.01,
         W=np.identity(size),
         lambda_=0.3,
         q_posture=qcurrent,
-        alpha=0.9,
+        alpha=1,
         viz=viz,
-        sleep_time=(1/30.0 if viz else 0)
+        sleep_time=(1/1000.0 if viz else 0)
     )
 
     return q_target, success
