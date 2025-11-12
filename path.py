@@ -19,6 +19,7 @@ from config import LEFT_HOOK, RIGHT_HOOK, LEFT_HAND, RIGHT_HAND, EPSILON
 from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET
 
 from setup_meshcat import updatevisuals
+from inverse_geometry import computeqgrasppose
 
 rng = np.random.default_rng(123)  # optional seed
 
@@ -29,7 +30,7 @@ class GeneratedPath:
         self.cube = cube
         self.G = []
         self.viz = viz
-        self.dt = 1/30.0 if viz else 0
+        self.dt = 1/1.0 if viz else 0
 
     def oMf_forFrameId(self, frameName):
         frameID = self.robot.model.getFrameId(frameName)
@@ -38,8 +39,18 @@ class GeneratedPath:
     def collision_check(self, q):
          '''Return true if q in collision, false otherwise.'''
 
-         pin.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
-         return pin.computeCollisions(robot.collision_model,robot.collision_data,False)
+         pin.updateGeometryPlacements(
+             self.robot.model,
+             self.robot.data,
+             self.robot.collision_model,
+             self.robot.collision_data,
+             q
+         )
+
+         return pin.computeCollisions(
+             self.robot.collision_model,
+             self.robot.collision_data,
+             False)
 
     def next_random_cube_configuration(self,
             q,
@@ -110,13 +121,16 @@ class GeneratedPath:
     def lerp(self, q0, q1, t):
         return q0 * (1 - t) + q1 * t
 
-    def new_conf(self, oMf_cube_near, oMf_cube_rand, discretisation_steps=1, delta_q=np.inf, render_attempts=False):
+    def new_conf(self, robot_q_corresponding_to_cube_near,
+                 oMf_cube_near, oMf_cube_rand, discretisation_steps=1, delta_q=np.inf, render_attempts=False
+                 ):
 
         """
         Return the closest oMf_cube_new (and the corresponding new_robot_q) s.t. the path
         oMf_cube_near => oMf_cube_new is the longest (using Pl¨ucker Coordinates) along the linear interpolation
         (oMf_cube_near, oMf_cube_rand) that is collision free and of length <  delta_q
 
+        :param robot_q_corresponding_to_cube_near:
         :param oMf_cube_near:
         :param oMf_cube_rand:
         :param discretisation_steps:
@@ -127,10 +141,7 @@ class GeneratedPath:
 
         oMf_cube_end = oMf_cube_rand.copy()
 
-        new_robot_q, success = computeqgrasppose(
-            self.robot, q, self.cube, oMf_cube_end, viz=(self.viz if render_attempts else None))
-
-        dist = self.distance_SE3(oMf_cube_near, oMf_cube_rand)
+        dist = self.distance_SE3(oMf_cube_near, oMf_cube_end)
 
         if dist > delta_q:
             #compute the configuration that corresponds to a path of length delta_q in Pl¨ucker Coordinates
@@ -139,13 +150,18 @@ class GeneratedPath:
                 self.lerp(pin.log(oMf_cube_near).vector, pin.log(oMf_cube_rand).vector, delta_q / dist)
             )
 
+        new_robot_q_for_cube_end, success = computeqgrasppose(
+            self.robot, robot_q_corresponding_to_cube_near,
+            self.cube, oMf_cube_end, viz=(self.viz if render_attempts else None))
+
         dt = 1.0 / discretisation_steps
         for i in range(1, discretisation_steps):
             oMf_cube_new = pin.exp(self.lerp(pin.log(oMf_cube_near).vector, pin.log(oMf_cube_end).vector, dt * i))
 
             # The cube position is updated too.
             new_robot_q, success = computeqgrasppose(
-                self.robot, q, self.cube, oMf_cube_new, viz=(self.viz if render_attempts else None))
+                self.robot, robot_q_corresponding_to_cube_near,
+                self.cube, oMf_cube_new, viz=(self.viz if render_attempts else None))
 
             collision_response = self.collision_check(new_robot_q)
 
@@ -154,18 +170,26 @@ class GeneratedPath:
                 oMf_cube_new = pin.exp(self.lerp(pin.log(oMf_cube_near), pin.log(oMf_cube_end), dt * (i - 1)))
 
                 new_robot_q, success = computeqgrasppose(
-                    self.robot, q, self.cube, oMf_cube_new, viz=(self.viz if render_attempts else None))
+                    self.robot, robot_q_corresponding_to_cube_near,
+                    self.cube, oMf_cube_new, viz=(self.viz if render_attempts else None))
 
                 assert success, "It should never happen as this was a valid solution previously!"
 
                 return oMf_cube_new, new_robot_q
 
-        return oMf_cube_end, new_robot_q
+        new_robot_q_for_cube_end, success = computeqgrasppose(
+            self.robot, new_robot_q,
+            self.cube, oMf_cube_end, viz=None)
+
+        return oMf_cube_end, new_robot_q_for_cube_end
 
 
-    def valid_edge(self, oMf_cube_new, oMf_cube_goal, discretisation_steps, eps=1e-3):
+    def valid_edge(self, robot_q_corresponding_to_cube_near,
+                   oMf_cube_new, oMf_cube_goal, discretisation_steps, eps=1e-3):
 
-        oMf_cube_new, new_robot_q = self.new_conf(oMf_cube_new, oMf_cube_goal, discretisation_steps)
+        oMf_cube_new, new_robot_q = self.new_conf(
+            robot_q_corresponding_to_cube_near,
+            oMf_cube_new, oMf_cube_goal, discretisation_steps)
 
         return self.distance_SE3(oMf_cube_goal, oMf_cube_new) < eps
 
@@ -173,11 +197,14 @@ class GeneratedPath:
             k, delta_q, lowerTranslationOffsets, upperTranslationOffsets, discretisation_steps):
 
         self.G = [(None, q_init.copy(), cubeplacementq0.copy())]
+        new_robot_q = q_init
 
-        for _ in range(k):
+        for indx in range(k):
+
+            print("Sample number ",indx)
 
             oMf_cube_rand, new_robot_q, success = self.next_random_cube_configuration(
-                q=q_init,
+                q=new_robot_q,
                 cube_init_position=cubeplacementq0,
                 lowerTranslationOffsets=lowerTranslationOffsets,
                 upperTranslationOffsets=upperTranslationOffsets,
@@ -193,16 +220,19 @@ class GeneratedPath:
             oMf_cube_near = self.G[q_near_index][2]
 
             oMf_cube_new, new_robot_q = self.new_conf(
+                robot_q_corresponding_to_cube_near=q_near,
                 oMf_cube_near=oMf_cube_near,
                 oMf_cube_rand=oMf_cube_rand,
                 discretisation_steps=discretisation_steps,
-                delta_q = delta_q
+                delta_q = delta_q,
+                render_attempts=True
             )
 
             self.add_edge_and_vertex(
                 parent_index=q_near_index,new_robot_q=new_robot_q, oMf_cube_new=oMf_cube_new)
 
             if self.valid_edge(
+                    robot_q_corresponding_to_cube_near=q_near,
                     oMf_cube_new=oMf_cube_new,
                     oMf_cube_goal=cubeplacementqgoal,
                     discretisation_steps=discretisation_steps):
@@ -223,14 +253,56 @@ class GeneratedPath:
         path = [self.G[0][1]] + path
         return path
 
+    # to be used for interpolation in task space
+    # and to move the cube too...
+    def getpath_robot_q_cube_mMf(self):
+        path = []
+        node = self.G[-1]
+        while node[0] is not None:
+            path = [(node[1], node[2])] + path
+            node = self.G[node[0]]
+        path = [(self.G[0][1], self.G[0][2])] + path
+        return path
+
     def displaypath(self):
 
-        path = self.getpath()
+        path = self.getpath_robot_q_cube_mMf()
 
-        for q in path:
+        for sample in path:
             if self.viz:
-                updatevisuals(viz,self.robot,self.cube,q)
+                setcubeplacement(self.robot, self.cube, sample[1])
+                updatevisuals(self.viz, self.robot, self.cube, sample[0])
                 time.sleep(self.dt)
+
+
+    def displaypathWithInterpolation(self):
+
+        path = self.getpath_robot_q_cube_mMf()
+
+        q, oMf_cube = path[0]
+        setcubeplacement(self.robot, self.cube, oMf_cube)
+        updatevisuals(self.viz, self.robot, self.cube, q)
+
+
+        for indx in range(1, len(path)):
+
+            _, oMf_cube = path[indx]
+
+            assert False, "Add interpolation using lerp!"
+
+            if self.viz:
+                setcubeplacement(self.robot, self.cube, oMf_cube)
+                q, _ = computeqgrasppose(self.robot, path[indx-1][0], self.cube, path[indx][1])
+
+                updatevisuals(self.viz, self.robot, self.cube, q)
+                time.sleep(self.dt)
+
+    def displayAllSamplesForInspection(self):
+
+        for sample in self.G:
+            setcubeplacement(self.robot, self.cube, sample[2])
+            updatevisuals(self.viz, self.robot, self.cube, sample[1])
+            time.sleep(2*self.dt)
 
 
 #returns a collision free path from qinit to qgoal under grasping constraints
@@ -259,10 +331,8 @@ def computepath(robot, cube, qinit, qgoal, cubeplacementq0, cubeplacementqgoal, 
 
     assert success, ":)  There is nothing to see here."
 
-    pause(5)
+    # pause(2)
     path_generator.displaypath()
-
-    # updatevisuals(viz, path_generator.robot, path_generator.cube, qgoal)
 
     # return [qinit, qgoal]
     return  path_generator.getpath()
@@ -270,7 +340,6 @@ def computepath(robot, cube, qinit, qgoal, cubeplacementq0, cubeplacementqgoal, 
 if __name__ == "__main__":
     from tools import setupwithmeshcat
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET
-    from inverse_geometry import computeqgrasppose
     
     robot, cube, viz = setupwithmeshcat()
     q = robot.q0.copy()

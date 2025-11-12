@@ -138,14 +138,14 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
         oMf_target_LH=oMcube_LH_hook,
         frameID_current_RH = frameID_tool_RH,
         oMf_target_RH = oMcube_RH_hook,
-        rho=4,
+        rho=50,
         mu=0.01,
         W=np.identity(size),
         lambda_=0.3,
         q_posture=qcurrent,
         alpha=1,
         viz=viz,
-        sleep_time=(1/1000.0 if viz else 0)
+        sleep_time=(1/100.0 if viz else 0)
     )
 
     return q_target, success
