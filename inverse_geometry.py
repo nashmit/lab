@@ -28,17 +28,16 @@ def oneStepIK_2arms_simultaneously(
         v_LH, v_RH,
         rho, mu, W, lambda_, q_posture, tol=1e-10
 ):
+    """
+    I'm traforming the problem in min_x ||Ax-b|| s.t. x_min<=x<=x_max by adding the penalized constraints as part of the cost function
+    and then computing the "A" and "b". It works fine for this IK but not so much for the control :)
+
+    The names of the parameters are self explanatory.
+
+    """
+
     #not essential, just keeping the notation clean for future use
     rho = np.sqrt(rho)
-
-    # A_LH = np.vstack([rho * J_LH, mu * W, lambda_ * np.eye(q.size)])
-    # b_LH = np.concatenate([rho * v_LH, mu * W @ (q_posture - q), np.zeros(q.size)])
-    #
-    # A_RH = np.vstack([rho * J_RH, mu * W, lambda_ * np.eye(q.size)])
-    # b_RH = np.concatenate([rho * v_RH, mu * W @ (q_posture - q), np.zeros(q.size)])
-    #
-    # A = np.vstack([A_LH, A_RH])
-    # b = np.concatenate([b_LH, b_RH])
 
     A = np.vstack([rho * J_LH, rho * J_RH, mu * W, lambda_ * np.eye(q.size)])
     b = np.concatenate([rho * v_LH, rho * v_RH, mu * W @ (q_posture - q), np.zeros(q.size)])
@@ -59,6 +58,73 @@ def IK_loop_2arms_simultaneously(
         rho, mu, W, lambda_, q_posture, error_stop=1e-3, max_steps=2000, alpha=0.3,
         viz = None, sleep_time=0.0
 ):
+    """
+    IK STEP: soft-penalty objective + HARD box constraints (joint position & velocity)
+
+    Decision variable:
+        Δq ∈ R^n   # joint increments for this control step
+
+    Given (per iteration):
+        q            ∈ R^n   # current joint configuration
+        q_min, q_max ∈ R^n   # joint-position limits
+        v_max        ∈ R^n   # joint-velocity limits (absolute, per joint)
+        dt           > 0     # step time [s]
+        J            ∈ R^{m×n}  # stacked task Jacobian (e.g., both hands)
+        v            ∈ R^m      # stacked task "desired" velocity / pose error (scaled)
+        q_posture    ∈ R^n      # preferred (bias) posture
+        W            ∈ R^{n×n}  # diagonal posture-weight matrix (>=0)
+        mu   ≥ 0               # posture strength
+        lambda ≥ 0             # numerical damping
+
+    Objective (soft penalties):
+        minimize over Δq:
+            || J Δq − v ||_2^2                          (task tracking)
+          + mu^2 * || W (q + Δq − q_posture) ||_2^2     (postural bias)
+          + lambda^2 * || Δq ||_2^2                      (damping / Tikhonov)
+
+    HARD box constraints (elementwise):
+        Position limits:   q_min ≤ q + Δq ≤ q_max
+        Velocity limits:  −v_max*dt ≤ Δq ≤ v_max*dt
+
+    Combine both as bounds on Δq:
+        lb = max( q_min − q , −v_max*dt )    # elementwise max
+        ub = min( q_max − q ,  v_max*dt )    # elementwise min
+
+    ===== Least-Squares stacking form (for scipy.optimize.lsq_linear) =====
+    Build:
+        A = [ J
+              mu * W
+              lambda * I_n ]          ∈ R^{(m+n+n) × n}
+
+        b = [ v
+              mu * W (q_posture − q)
+              0_n ]                    ∈ R^{(m+n+n)}
+
+    Solve:
+        minimize || A Δq − b ||_2^2   subject to   lb ≤ Δq ≤ ub
+
+    ===== Quadratic Program (for OSQP / CVXPy / quadprog) =====
+    I haven't done this part... but it's easy.
+
+    IT WOULD HAVE BEEN SMARTER FOR ME TO KEEP THE CONSTRAINTS HARD (AND TRANSFORM THE COST FUNCTION IN A QP)
+    AND NOT TO TRANSFORM THEM INTO SOFT CONSTRAINTS!!!!!! FOR IK
+    It is NOT A PROBLEM, BUT FOR THE CONTRO,L IT WAS AN UNFORTUNATE DECISION!!!
+    ANOTHER SOLUTION, WOULD HAVE BEEN AUGMENTED LAGRANGIAN... BUT I HAD NO TIME FOR IT.
+
+    Equivalent QP:
+        P = 2 * ( Jᵀ J + mu^2 * Wᵀ W + lambda^2 * I_n )     # SPD
+        q_vec = −2 * ( Jᵀ v + mu^2 * Wᵀ W (q_posture − q) )
+
+    Solve:
+        minimize   (1/2) Δqᵀ P Δq + q_vecᵀ Δq
+        subject to lb ≤ Δq ≤ ub
+
+    Notes:
+      • mu, W shape posture: increase mu or specific W_ii to keep joints near q_posture (and away from limits).
+      • lambda stabilizes near singularities (try 1e−3 … 1e−1 relative to typical singular values).
+      • Warm-start with previous solution; after solve, update q ← clip(q + α Δq), check collisions, adapt α if needed.
+      • Trust region can be enforced by tightening lb/ub: |Δq| ≤ Δq_max.
+    """
 
     success = False
 
@@ -120,11 +186,9 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     # The selected parameters are not optimized with a particular objective in mind other than reaching the end goal.
     # However, the numerical dumping term and the posture bias are fully functional.
     # I also added the configuration bonds just to make sure we don't end up with a final solution that is not plausible.
-    # I also added the velocity bounds... as an exercises for the next tasks.
+    # I also added the velocity bounds... as an exercise for the next tasks.
 
     # In this homework, I'm using IK with the same meaning as one can find in the literature.
-
-    #todo add the equation for clarity!
 
     q_target, success = IK_loop_2arms_simultaneously(
         robot=robot,

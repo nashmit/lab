@@ -21,7 +21,7 @@ from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET
 from setup_meshcat import updatevisuals
 from inverse_geometry import computeqgrasppose
 
-rng = np.random.default_rng(123)  # optional seed
+rng = np.random.default_rng(123)
 
 class GeneratedPath:
 
@@ -86,11 +86,14 @@ class GeneratedPath:
                 return cube_init_position * offsets, new_robot_q, success
             
     def distance(self, q1, q2, norm=np.linalg.norm):
-        '''Return the euclidian distance between two configurations'''
+        """
+        Return the euclidian distance between two configurations
+        """
         return norm(q2 - q1)
 
     def distance_SE3(self, oMf_ob1, oMf_ob2, norm=np.linalg.norm):
         """
+        Compute distance but for SE3,
 
         :param oMf_ob1:
         :param oMf_ob2:
@@ -196,6 +199,7 @@ class GeneratedPath:
     def rrt(self, q_init, q_goal, cubeplacementq0, cubeplacementqgoal,
             k, delta_q, lowerTranslationOffsets, upperTranslationOffsets, discretisation_steps):
 
+        # Each element of G contains (index to paren, q for robot, the corresponding cube's oMf matrix )
         self.G = [(None, q_init.copy(), cubeplacementq0.copy())]
         new_robot_q = q_init
 
@@ -213,7 +217,7 @@ class GeneratedPath:
 
             assert success, "This should never happen! The previous function should return only if a new configuration is identified!"
 
-            # The distance is computed using cube's configuration.
+            # The distance is computed using cube's configuration space.
             q_near_index = self.nearest_vertex(oMf_cube_rand)
 
             q_near = self.G[q_near_index][1]
@@ -274,29 +278,6 @@ class GeneratedPath:
                 updatevisuals(self.viz, self.robot, self.cube, sample[0])
                 time.sleep(self.dt)
 
-
-    def displaypathWithInterpolation(self):
-
-        path = self.getpath_robot_q_cube_mMf()
-
-        q, oMf_cube = path[0]
-        setcubeplacement(self.robot, self.cube, oMf_cube)
-        updatevisuals(self.viz, self.robot, self.cube, q)
-
-
-        for indx in range(1, len(path)):
-
-            _, oMf_cube = path[indx]
-
-            assert False, "Add interpolation using lerp!"
-
-            if self.viz:
-                setcubeplacement(self.robot, self.cube, oMf_cube)
-                q, _ = computeqgrasppose(self.robot, path[indx-1][0], self.cube, path[indx][1])
-
-                updatevisuals(self.viz, self.robot, self.cube, q)
-                time.sleep(self.dt)
-
     def displayAllSamplesForInspection(self):
 
         for sample in self.G:
@@ -311,9 +292,8 @@ def computepath(robot, cube, qinit, qgoal, cubeplacementq0, cubeplacementqgoal, 
 
     path_generator = GeneratedPath(robot=robot, cube=cube, viz=viz)
 
-    # lowerTranslationOffsets = np.array([-0.2, -0.1, 0])
-    # upperTranslationOffsets = np.array([0.3, 0.5, 0.3])
-
+    # These are the offsets used later for sampling (wrt the cube's starting point).
+    # The sampling is happening only for translation.
     lowerTranslationOffsets = np.array([-0.2, -0.1, -0.1])
     upperTranslationOffsets = np.array([0.3, 0.5, 0.3])
 
@@ -323,18 +303,16 @@ def computepath(robot, cube, qinit, qgoal, cubeplacementq0, cubeplacementqgoal, 
         q_goal=qgoal,
         cubeplacementq0=cubeplacementq0,
         cubeplacementqgoal=cubeplacementqgoal,
-        k=2000,
-        delta_q=0.1,
+        k=2000, # max number of computed samples
+        delta_q=0.1, # max movement in the direction of the new sample from the closest nod in the graph.
         lowerTranslationOffsets=lowerTranslationOffsets,
         upperTranslationOffsets=upperTranslationOffsets,
         discretisation_steps=10)
 
     assert success, ":)  There is nothing to see here."
 
-    # pause(2)
     path_generator.displaypath()
 
-    # return [qinit, qgoal]
     return  path_generator.getpath()
 
 if __name__ == "__main__":
