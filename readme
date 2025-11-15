@@ -1,3 +1,117 @@
 You can check the: requirements.txt
 
 You can find big comments which explain what I've done and how...
+
+---------------------------------------------------------------------------
+
+
+Part 1: Geometry
+I. Computing the target configurations (Inverse Kinematics)
+
+Status: IK task completed.
+
+    The optimization problem penalizes:
+
+        The distance to the desired position,
+
+        The postural bias,
+
+        And damping,
+        for both the left and right hands simultaneously.
+
+    The problem is reformulated as a linear least squares (LLS) problem with bound constraints only. The transformation process is described in:
+    IK_loop_2arms_simultaneously(...)
+
+    The path to the target is generated while checking both position and velocity limits/constraints.
+
+    Multiple parameters (weights, etc.) are exposed for tuning.
+
+II. Motion planning
+
+Status: Task completed (class GeneratedPath in path.py).
+
+    This part uses the IK implementation from the previous task.
+
+    The RRT contains:
+
+        Each node of the RRT (the G variable in GeneratedPath) is of the form:
+        (index_to_parent, q_robot, cube_oMf_matrix)
+
+        Robot configurations are generated starting from cube sample configurations that satisfy constraints (only translations, with extra bounds so we don’t sample too far away into unreachable areas).
+
+        The distance between the random sample and the nearest node is computed using the SE(3) geodesic distance (via the associated Lie algebra):
+        nearest_vertex()
+
+        To generate a new configuration, I discretize the cube’s configuration between the initial closest node and the random one, up to some delta_q step, and check for collisions.
+        The intermediate configurations are computed using SE(3) interpolation (associated Lie algebra) so that the cube remains grasped for all interpolated poses, e.g. exp(lerp(log(...))) → new_conf(...).
+
+        By considering both position and velocity during sampling, I obtain more accurate solutions for the control task (fewer infeasible trajectories) and a faster RRT construction.
+
+        Edges and vertices are added as expected, followed by path validation.
+
+
+Part 2: Dynamics
+
+Status: Task completed (though I suspect there are some bugs).
+I. From a path to a trajectory
+
+    As expected, I build on the previous work.
+
+    This part is somewhere between:
+
+        Level 2: QP programming without collision constraints and
+
+        Level 3: Handling collision constraints. (between cube and the robot)
+
+    I use your Bezier class to generate an initial feasible trajectory with an initial guess for the total time (build_trajectory()), and then I automatically rescale it to improve velocity feasibility (adjusting_time_trajectory(...)).
+    The position is already feasible due to the convex hull property of the control points.
+
+    At this stage, I did not include path-related collision checking.
+
+    Acceleration constraints were not added—not because it would be difficult (I could have followed a similar approach as for position/velocity constraints), but because the robot model in Pinocchio does not provide acceleration limits.
+
+    I did not optimize for time via open-loop optimal control or MPC. This would have required an additional optimal control layer that I didn’t implement due to technical issues. The solution suggested in the homework was not compatible with my initial idea (using Crocoddyl as an MPC).
+
+    For “Handling grasping constraints”, I redefined the optimization problem for joint-space torque control and computed the necessary forces for grasping during control.
+
+II. Implementing a torque control law
+
+    Without the cube, the controller generally manages to follow the path. With more time for manual parameter tuning, the performance could likely be improved (the implementation itself is in place).
+
+    The controller is defined in joint space and also computes the necessary forces for grasping (this is the contact/collision part I focused on):
+    controllaw_with_friction(...)
+
+    A simpler version, without considering contact forces, is also implemented:
+    controllaw(...)
+
+For the main controller, I used a more sophisticated optimization formulation:
+
+    Both feedforward and feedback terms are considered.
+
+    The friction coefficient is assumed known.
+
+    Multiple objectives are included:
+
+        Track a desired joint acceleration ddq_d (feedforward + PD).
+
+        Respect the joint-space dynamics (including contact forces).
+
+        Enforce friction constraints to maintain sticking contact by computing the required contact forces (tangent & normal at left/right contacts, in 2D instead of a full friction cone—I initially thought a full cone wouldn’t be necessary; in hindsight, keeping the full cone might have been better to handle possible numerical slipping).
+
+        Stay within joint configuration and joint velocity limits.
+
+        Include some damping terms.
+
+Because this controller can be seen as a low-level controller (built on top of a feedforward + PD structure with many gains and weights), I chose to enforce all the above objectives as soft constraints (penalty terms) in the cost function. Since all cost terms are quadratic and convex, I could rewrite the problem as a general LLS with bound constraints:
+
+    Minimize ‖A x − b‖² subject to l ≤ x ≤ u
+
+The full derivation is explained in detail in: controllaw_with_friction(...)
+
+I expose many tunable parameters, which in the end made my life harder: finding a good combination of values required more time than I anticipated, and the technical problems I had in the last two days didn’t help.
+
+These are the parameters:
+
+Kp = 70300.0 # proportional gain (P of PD) Kd = 3 * np.sqrt(Kp) # derivative gain (D of PD) # Least-squares weights # for tracking ddq w_track = 1e+1 # keep contact forces small w_f = 1e-1 # regularize torques w_tau = 1e-5 # enforce dynamics strongly w_dyn = 5e+6 # enforce friction constraints w_fric = 1e+5 # discourage slack w_s = 1e+1 # friction coefficient mu = 0.7 N_max = 140 # max normal force (in Newtons) tangent = np.array([0, 0, -1]) # unit tangent in contact frame, shape (3,) normal = np.array([0, 1, 0]) # unit normal in contact frame, shape (3,)
+
+In hindsight, it’s fair to say my design was a bit uninspired. I should probably have kept some constraints as hard constraints (e.g., enforcing the dynamics strictly via KKT conditions) and moved to a QP with equality constraints + bounds, effectively turning the controller into an SQP, or used an augmented Lagrangian solver. The soft-constraints design was a deliberate choice, partly because the problem already had many gains/parameters (e.g. Kp, Kd, weights) that needed tuning. Now I know better :)
